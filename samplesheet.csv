@@ -1,0 +1,2 @@
+id,sample,flowcell,reads,batch,kit
+run_1,sample_1,flowcell1,/storage1/fs1/timley/Active/aml_ppg/analysis/longread/incoming/0927274/SMRTcell1/hifi_reads/m84081_231103_200509_s2.hifi_reads.bc2073.bam,20221220,LSK114

@@ -1,0 +1,2 @@
+id,sample,flowcell,reads,batch,kit
+run_1,sample_1,flowcell1,/storage1/fs1/timley/Active/aml_ppg/analysis/longread/pacbio/nextflow_test/input/,20221220,LSK114

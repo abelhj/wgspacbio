@@ -1,0 +1,5 @@
+id,sample,flowcell,fast5_path,batch,kit
+run_1,sample_1,flowcell1,s3://davidspencerlab/nextflow/wgsnano/test-datasets/stub-test/fast5/sample1_flow1/sample1_flowcell1.fast5/,20221220,LSK114
+run_2,sample_1,flowcell2,s3://davidspencerlab/nextflow/wgsnano/test-datasets/stub-test/fast5/sample1_flow2/sample1_flowcell2.fast5/,20221220,LSK114
+run_3,sample_2,flowcell1,s3://davidspencerlab/nextflow/wgsnano/test-datasets/stub-test/fast5/sample2_flow1/sample2_flowcell1.fast5/,20221220,LSK114
+run_4,sample_2,flowcell2,s3://davidspencerlab/nextflow/wgsnano/test-datasets/stub-test/fast5/sample2_flow2/sample2_flowcell2.fast5/,20221220,LSK114
