@@ -1,0 +1,36 @@
+process CLAIRS {
+    label 'process_high'
+    conda '/opt/conda/envs/bio'
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'docker pull hkubal/clairs:v0.4.1' :
+        'docker pull hkubal/clairs:v0.4.1' }"
+
+    input:
+        tuple val(meta), path(bam_bai_files)
+        path (reference_fasta)
+        path (reference_fasta_index)
+
+    output:
+        tuple val(meta), path("${meta.sample}*.deepvariant.vcf.gz")    , emit: vcf
+        tuple val(meta), path("${meta.sample}*.deepvariant.g.vcf.gz")  , emit: gvcf
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+        /opt/bin/run_clair3.sh \
+        --bam_fn=$meta.sample}.sorted.bam \
+        --ref_fn=$reference_fasta \
+        --threads=$threads \
+        --platform="hifi" \
+        --model_path="/opt/models/~{clair_model}" \
+        --output=clair3_${meta.sample} \
+        --sample_name=${meta.sample}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        clairs: \$(run_deepvariant --version | grep version )
+    END_VERSIONS
+    """
+
+}

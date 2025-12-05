@@ -1,0 +1,45 @@
+process CLAIR3 {
+    label 'process_high'
+//    conda '/opt/conda/envs/clair3'
+    conda "bioconda::clair3=1.2.0"
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'quay.io/biocontainers/clair3:1.2.0--py310h779eee5_0' :
+        'quay.io/biocontainers/clair3:1.2.0--py310h779eee5_0' }"
+//        'hkubal/clair3@sha256:857af16c759b0893fc757511a17c1efdfe253cbb64dffbcc8eecac0d33a60f60' :
+//        'hkubal/clair3@sha256:857af16c759b0893fc757511a17c1efdfe253cbb64dffbcc8eecac0d33a60f60' }"
+
+    input:
+        tuple val(meta), path(bam_bai_files)
+        path (reference_fasta)
+        path (reference_fasta_index)
+
+    output:
+        tuple val(meta), path("${meta.sample}*clair3.small_variants.vcf.gz")    , emit: vcf
+        tuple val(meta), path("${meta.sample}*clair3.small_variants.vcf.gz.tbi")    , emit: vcf_idx
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+        run_clair3.sh \
+        --bam_fn=${meta.sample}.sorted.bam \
+        --ref_fn=$reference_fasta \
+        --threads=12 \
+        --platform="hifi" \
+        --model_path="/usr/local/bin/models/hifi_revio" \
+        --output="./" \
+        --sample_name=${meta.sample}
+
+     
+        gunzip -c ./merge_output.vcf.gz \
+        | awk 'BEGIN{OFS="\t"}{if(\$7!="LowQual"){print \$0}}' \
+        | bgzip -c > ${meta.sample}.clair3.small_variants.vcf.gz
+        tabix -p vcf ${meta.sample}.clair3.small_variants.vcf.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        clair3: \$(run_clair3.sh -v  )
+    END_VERSIONS
+    """
+
+}
