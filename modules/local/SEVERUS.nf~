@@ -12,8 +12,8 @@ process DEEPSOMATIC {
         path (reference_fasta_index)
 
     output:
-        tuple val(meta), path("${meta.sample}*.deepsomatic.vcf.gz")    , emit: vcf
-        tuple val(meta), path("${meta.sample}*.deepsomatic.g.vcf.gz")  , emit: gvcf
+        tuple val(meta), path("${meta.sample}*.somatic.vcf.gz")    , emit: vcf
+        tuple val(meta), path("${meta.sample}*.somatic.g.vcf.gz")  , emit: gvcf
         path  ("versions.yml")                                      , emit: versions
 
     script:

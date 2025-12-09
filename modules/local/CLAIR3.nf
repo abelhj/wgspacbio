@@ -36,6 +36,8 @@ process CLAIR3 {
         | bgzip -c > ${meta.sample}.clair3.small_variants.vcf.gz
         tabix -p vcf ${meta.sample}.clair3.small_variants.vcf.gz
 
+
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         clair3: \$(run_clair3.sh -v  )

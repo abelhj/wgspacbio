@@ -61,7 +61,10 @@ include { WHATSHAP                                      } from '../modules/local
 include { SAMTOOLS_STATS                                } from '../modules/local/SAMTOOLS_STATS.nf'
 include { CLAIR3                                        } from '../modules/local/CLAIR3.nf'
 include { DEEPSOMATIC                                   } from '../modules/local/DEEPSOMATIC.nf'
-
+include { POST_DEEPSOMATIC                              } from '../modules/local/POST_DEEPSOMATIC.nf'
+include { POST_CLAIR3                                   } from '../modules/local/POST_CLAIR3.nf'
+include { PHASE                                         } from '../modules/local/PHASE.nf'
+include { ANNOTATE_VARIANTS                             } from '../modules/local/ANNOTATE_VARIANTS.nf'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -147,6 +150,59 @@ if (params.reads_format == 'bam' ) {
         file(params.fasta_index)
     )
     ch_versions = ch_versions.mix(DEEPSOMATIC.out.versions)
+
+    // MODULE: POST_DEEPSOMATIC
+    //
+    POST_DEEPSOMATIC (
+        DEEPSOMATIC.out.vcf,
+        file(params.fasta),
+        file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(POST_DEEPSOMATIC.out.versions)
+
+    // MODULE: POST_CLAIR3
+    //
+    POST_CLAIR3 (
+        CLAIR3.out.vcf,
+        file(params.fasta),
+        file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(POST_CLAIR3.out.versions)
+
+    ch_phase_input = SAMTOOLS_SORT.out.bam.mix(SAMTOOLS_SORT.out.bai, POST_DEEPSOMATIC.out.fixed_vcf, POST_DEEPSOMATIC.out.fixed_vcf_tbi, POST_CLAIR3.out.fixed_vcf, POST_CLAIR3.out.fixed_vcf_tbi).groupTuple(size:6).map{ meta, files -> [ meta, files.flatten() ]}
+    // MODULE: PHASE
+    //
+    PHASE (
+        ch_phase_input,
+        file(params.fasta),
+        file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(PHASE.out.versions)
+
+    //ch_annotate_input = PHASE.out.phased_vcf.mix(PHASE.out.somatic_phased_vcf.
+    // MODULE: ANNOTATE_VARIANTS
+    //
+    ANNOTATE_VARIANTS (
+      PHASE.out.phased_vcf,
+      file(params.fasta),
+      file(params.fasta_index),
+      file(params.vep_cache),
+      file(params.cytobands),
+      file(params.custom_annotation_vcf)
+   )
+
+    ANNOTATE_VARIANTS (
+      PHASE.out.somatic_phased_vcf,
+      file(params.fasta),
+      file(params.fasta_index),
+      file(params.vep_cache),
+      file(params.cytobands),
+      file(params.custom_annotation_vcf)
+   )
+
+
+
+
 
 
 //    //

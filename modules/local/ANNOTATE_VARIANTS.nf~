@@ -1,0 +1,99 @@
+process ANNOTATE_VARIANTS {
+    tag "${meta.id}"
+    label "process_low"
+
+    container "ghcr.io/dhslab/docker-vep_release113:250810"
+
+    input:
+    tuple val(meta), path(vcf)
+    path(reference_fasta)
+    path(reference_fasta_index)
+
+    output:
+    tuple val(meta), path("*.annotated.vcf.gz*"), emit: vcf
+    path("versions.yml")                        , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    """
+    base=`basename $vcf .vcf.gz`
+    tabix -p vcf $vcf
+    
+    /opt/vep/src/ensembl-vep/vep \\
+        --vcf \\
+        --hgvs \\
+        --cache \\
+        --dir ${params.vep_cache} \\
+        --max_af \\
+        --symbol \\
+        --offline \\
+        --term SO \\
+        -i ${vcf} \\
+        --fasta $reference_fasta \\
+        --flag_pick \\
+        --format vcf \\
+        --custom ${params.cytobands},cytobands,bed \\
+        --custom ${params.custom_annot},"CHROMOSEQ,vcf,exact,0,DB,BLACKLIST" \
+        -o "${meta.id}.$base.annotated.vcf"
+
+    bgzip -c \\
+        "${meta.id}.$base.annotated.vcf" \\
+        > "${meta.id}.$base.annotated.vcf.gz"
+
+    tabix \\
+        -p vcf \\
+        "${meta.id}.$base.annotated.vcf.gz"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        vep: \$(/opt/vep/src/ensembl-vep/vep 2>&1 | grep ensembl-vep | awk -F ': ' '{print \$NF}')
+    END_VERSIONS
+    """
+
+    stub:
+    def annotate_args = [
+        vep_cache                                 ? "--dir ${vep_cache}"   : "",
+        reference.find{ it ==~ /.*\.(fasta|fa)$/ }?.with{ "--fasta $it" } ?: "",
+        cytobands
+            ? "--custom ${cytobands.min{ it.toString().length() }},cytobands,bed"
+            : "",
+        custom_annotation_vcf && params.custom_annotation_parameters
+            ? "--custom ${custom_annotation_vcf.min{ it.toString().length() }},${params.custom_annotation_parameters}"
+            : "",
+    ].join(' ').trim()
+    """
+    touch "${meta.id}.annotated.vcf.gz"
+    touch "${meta.id}.annotated.vcf.gz.tbi"
+
+    cat <<-END_CMDS > "${meta.id}_cmds.txt"
+    /opt/vep/src/ensembl-vep/vep \\
+        --vcf \\
+        --hgvs \\
+        --cache \\
+        --max_af \\
+        --symbol \\
+        --offline \\
+        --term SO \\
+        -i ${vcf} \\
+        --flag_pick \\
+        --format vcf \\
+        ${annotate_args} \\
+        -o "${meta.id}.annotated.vcf"
+
+    bgzip -c \\
+        "${meta.id}.annotated.vcf" \\
+        > "${meta.id}.annotated.vcf.gz"
+
+    tabix \\
+        -p vcf \\
+        "${meta.id}.annotated.vcf.gz"
+    END_CMDS
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        vep: \$(/opt/vep/src/ensembl-vep/vep 2>&1 | grep ensembl-vep | awk -F ': ' '{print \$NF}')
+    END_VERSIONS
+    """
+}

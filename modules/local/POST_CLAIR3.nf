@@ -1,0 +1,37 @@
+process POST_CLAIR3 {
+    label 'process_high'
+    conda '/opt/conda/envs/bio'
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'quay.io/biocontainers/bcftools:1.17--h3cc50cf_1' :
+        'quay.io/biocontainers/bcftools:1.17--h3cc50cf_1' }"
+
+    input:
+        tuple val(meta), path(input_vcf)
+        path (reference_fasta)
+        path (reference_fasta_index)
+
+
+    output:
+	tuple val(meta), path("${meta.sample}.clair3.correct.vcf.gz")    , emit: fixed_vcf
+	tuple val(meta), path("${meta.sample}.clair3.correct.vcf.gz.tbi")    , emit: fixed_vcf_tbi
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+
+      bcftools +fill-from-fasta \
+            ${meta.sample}.clair3.small_variants.vcf.gz \
+            -Oz \
+            -- -c REF \
+            --fasta $reference_fasta > ${meta.sample}.clair3.correct.vcf.gz
+        tabix -p vcf ${meta.sample}.clair3.correct.vcf.gz
+
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bcftools: \$(bcftools --version  )
+    END_VERSIONS
+    """
+
+}
