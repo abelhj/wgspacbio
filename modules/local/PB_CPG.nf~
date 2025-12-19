@@ -1,0 +1,40 @@
+process PB_CPG {
+    label 'process_medium'
+    conda '/opt/conda/envs/bio'
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'quay.io/pacbio/pb-cpg-tools@sha256:b95ff1c53bb16e53b8c24f0feaf625a4663973d80862518578437f44385f509b' :
+        'quay.io/pacbio/pb-cpg-tools@sha256:b95ff1c53bb16e53b8c24f0feaf625a4663973d80862518578437f44385f509b' }"
+
+    input:
+        tuple val(meta), path(input_files)
+        path (reference_fasta)
+        path (reference_fasta_index)
+
+    output:
+        tuple val(meta), path("${meta.sample}*.combined.bed.gz")    , emit: combined_bed
+        tuple val(meta), path("${meta.sample}*.hap1.bed.gz")    , emit: hap1_bed
+        tuple val(meta), path("${meta.sample}*.hap2.bed.gz")    , emit: hap2_bed
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+    aligned_bam_to_cpg_scores \
+      --threads ${task.cpus} \
+      --bam ${meta.sample}.haplotagged.bam \
+      --ref $reference_fasta \
+      --output-prefix ${meta.sample} \
+      --min-mapq 1 \
+      --min-coverage 5 \
+      --model /opt/pb-CpG-tools-v2.3.2-x86_64-unknown-linux-gnu/models/pileup_calling_model.v1.tflite
+
+  # gzip all bed
+  gzip ${meta.sample}.combined.bed
+  gzip ${meta.sample}.hap1.bed
+  gzip ${meta.sample}.hap2.bed
+    "${task.process}":
+        aligned_bam_to_cpg_scores: \$(aligned_bam_to_cpg_scores --version)
+    END_VERSIONS
+    """
+
+}

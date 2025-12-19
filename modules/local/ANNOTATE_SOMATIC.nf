@@ -1,4 +1,4 @@
-process ANNOTATE_VARIANTS {
+process ANNOTATE_SOMATIC {
     tag "${meta.sample}"
     label "process_high"
 
@@ -14,7 +14,7 @@ process ANNOTATE_VARIANTS {
 
 
     output:
-    tuple val(meta), path("*.annotated.vcf.gz*"), emit: vcf
+    tuple val(meta), path("*.deepsomatic.annotated.vcf.gz*"), emit: vcf
     path("versions.yml")                        , emit: versions
 
     when:
@@ -35,21 +35,21 @@ process ANNOTATE_VARIANTS {
         --symbol \\
         --offline \\
         --term SO \\
-        -i ${meta.sample}.rephased.vcf.gz  \\
+        -i ${meta.sample}.deepsomatic.PASS.fixed.vcf.gz  \\
         --fasta $reference_fasta \\
         --flag_pick \\
         --format vcf \\
         --custom ${cytobands},cytobands,bed \\
         --custom ${custom_annot},"CHROMOSEQ,vcf,exact,0,DB,BLACKLIST" \
-        -o ${meta.sample}.annotated.vcf
+        -o ${meta.sample}.deepsomatic.annotated.vcf
 
     bgzip -c \\
-        ${meta.sample}.annotated.vcf \\
-        > "${meta.sample}.annotated.vcf.gz"
+        ${meta.sample}.deepsomatic.annotated.vcf \\
+        > "${meta.sample}.deepsomatic.annotated.vcf.gz"
 
     tabix \\
         -p vcf \\
-        ${meta.sample}.annotated.vcf.gz
+        ${meta.sample}.deepsomatic.annotated.vcf.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

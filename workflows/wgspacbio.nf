@@ -61,10 +61,19 @@ include { WHATSHAP                                      } from '../modules/local
 include { SAMTOOLS_STATS                                } from '../modules/local/SAMTOOLS_STATS.nf'
 include { CLAIR3                                        } from '../modules/local/CLAIR3.nf'
 include { DEEPSOMATIC                                   } from '../modules/local/DEEPSOMATIC.nf'
+include { DEEPSOMATIC_LUMOS                             } from '../modules/local/DEEPSOMATIC_LUMOS.nf'
 include { POST_DEEPSOMATIC                              } from '../modules/local/POST_DEEPSOMATIC.nf'
 include { POST_CLAIR3                                   } from '../modules/local/POST_CLAIR3.nf'
 include { PHASE                                         } from '../modules/local/PHASE.nf'
+include { LONGPHASE                                     } from '../modules/local/LONGPHASE.nf'
 include { ANNOTATE_VARIANTS                             } from '../modules/local/ANNOTATE_VARIANTS.nf'
+include { ANNOTATE_SOMATIC                              } from '../modules/local/ANNOTATE_SOMATIC.nf'
+include { WAKHAN_HAPCORRECT                             } from '../modules/local/WAKHAN_HAPCORRECT.nf'
+include { HAPLOTAG                                      } from '../modules/local/HAPLOTAG.nf'
+include { WAKHAN_CNA                                    } from '../modules/local/WAKHAN_CNA.nf'
+include { SEVERUS                                       } from '../modules/local/SEVERUS.nf'
+include { PB_CPG                                        } from '../modules/local/PB_CPG.nf'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -151,6 +160,14 @@ if (params.reads_format == 'bam' ) {
     )
     ch_versions = ch_versions.mix(DEEPSOMATIC.out.versions)
 
+    DEEPSOMATIC_LUMOS (
+        ch_dv_input,
+        file(params.fasta),
+        file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(DEEPSOMATIC_LUMOS.out.versions)
+
+
     // MODULE: POST_DEEPSOMATIC
     //
     POST_DEEPSOMATIC (
@@ -179,27 +196,87 @@ if (params.reads_format == 'bam' ) {
     )
     ch_versions = ch_versions.mix(PHASE.out.versions)
 
-    //ch_annotate_input = PHASE.out.phased_vcf.mix(PHASE.out.somatic_phased_vcf.
-    // MODULE: ANNOTATE_VARIANTS
+    ch_longphase_input = SAMTOOLS_SORT.out.bam.mix(SAMTOOLS_SORT.out.bai, POST_CLAIR3.out.fixed_vcf, POST_CLAIR3.out.fixed_vcf_tbi).groupTuple(size:4).map{ meta, files -> [ meta, files.flatten() ]}
+
+    // MODULE: LONGPHASE
     //
+    LONGPHASE (
+        ch_longphase_input,
+        file(params.fasta),
+        file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(LONGPHASE.out.versions)
+
+    ch_wh_input = SAMTOOLS_SORT.out.bam.mix(SAMTOOLS_SORT.out.bai, LONGPHASE.out.phased_vcf).groupTuple(size:3).map{ meta, files -> [ meta, files.flatten() ]}
+    WAKHAN_HAPCORRECT(
+      ch_wh_input,
+      file(params.fasta),
+      file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(WAKHAN_HAPCORRECT.out.versions)
+
+  
+    ch_haplotag_input = SAMTOOLS_SORT.out.bam.mix(SAMTOOLS_SORT.out.bai, WAKHAN_HAPCORRECT.out.rephased_vcf, WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:4).map{ meta, files -> [ meta, files.flatten() ]}
+    HAPLOTAG(
+      ch_haplotag_input,
+      file(params.fasta),
+      file(params.fasta_index)
+    )
+    ch_versions = ch_versions.mix(HAPLOTAG.out.versions)
+
+    ch_severus_input = HAPLOTAG.out.bam.mix(HAPLOTAG.out.bai, WAKHAN_HAPCORRECT.out.rephased_vcf, WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:4).map{ meta, files -> [ meta, files.flatten() ]}
+    SEVERUS(
+      ch_severus_input,
+      file(params.fasta),
+      file(params.fasta_index),
+      file(params.trf),
+      file(params.severus_pon)
+    )
+   ch_versions = ch_versions.mix(SEVERUS.out.versions)
+
+   ch_cna_input = HAPLOTAG.out.bam.mix(HAPLOTAG.out.bai, WAKHAN_HAPCORRECT.out.rephased_vcf, WAKHAN_HAPCORRECT.out.rephased_vcf_tbi, SEVERUS.out.severus_vcf, WAKHAN_HAPCORRECT.out.wakhanHPOutput).groupTuple(size:6).map{ meta, files -> [ meta, files.flatten() ]}
+    WAKHAN_CNA(
+        ch_cna_input,
+        file(params.fasta),
+        file(params.fasta_index),
+        file(params.chromoseq_genes_cnv)
+      )
+   ch_versions = ch_versions.mix(WAKHAN_CNA.out.versions)
+
+   ch_cpg_input = HAPLOTAG.out.bam.mix(HAPLOTAG.out.bai).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
+    PB_CPG(
+        ch_cpg_input,
+        file(params.fasta),
+        file(params.fasta_index),
+      )
+  ch_versions = ch_versions.mix(PB_CPG.out.versions)
+ 
+
+   ch_annotate_input = WAKHAN_HAPCORRECT.out.rephased_vcf.mix(WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
+   //MODULE: ANNOTATE_VARIANTS
+   //
     ANNOTATE_VARIANTS (
-      PHASE.out.phased_vcf,
+      ch_annotate_input,
       file(params.fasta),
       file(params.fasta_index),
       file(params.vep_cache),
       file(params.cytobands),
-      file(params.custom_annotation_vcf)
+      file(params.custom_annotations)
    )
-
-    ANNOTATE_VARIANTS (
-      PHASE.out.somatic_phased_vcf,
+   ch_annotate_input = POST_DEEPSOMATIC.out.fixed_vcf.mix(POST_DEEPSOMATIC.out.fixed_vcf_tbi).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
+   //MODULE: ANNOTATE_VARIANTS
+   //
+    ANNOTATE_SOMATIC (
+      ch_annotate_input,
       file(params.fasta),
       file(params.fasta_index),
       file(params.vep_cache),
       file(params.cytobands),
-      file(params.custom_annotation_vcf)
+      file(params.custom_annotations)
    )
 
+
+  ch_versions = ch_versions.mix(ANNOTATE_VARIANTS.out.versions)
 
 
 
