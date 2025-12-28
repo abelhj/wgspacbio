@@ -1,0 +1,60 @@
+process ANNOTATE_SOMATIC {
+    tag "${meta.sample}"
+    label "process_high"
+
+    container "ghcr.io/dhslab/docker-vep_release113:250810"
+
+    input:
+    tuple val(meta), path(vcf)
+    path(reference_fasta)
+    path(reference_fasta_index)
+    path(vep_cache)
+    path(cytobands)
+    path(custom_annot)
+
+
+    output:
+    tuple val(meta), path("*.deepsomatic.annotated.vcf.gz*"), emit: vcf
+    path("versions.yml")                        , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    """
+
+    tabix -p bed $cytobands
+    tabix -p vcf $custom_annot
+    
+    /opt/vep/src/ensembl-vep/vep \\
+        --vcf \\
+        --hgvs \\
+        --cache \\
+        --dir ${vep_cache} \\
+        --max_af \\
+        --symbol \\
+        --offline \\
+        --term SO \\
+        -i ${meta.sample}.deepsomatic.PASS.fixed.vcf.gz  \\
+        --fasta $reference_fasta \\
+        --flag_pick \\
+        --format vcf \\
+        --custom ${cytobands},cytobands,bed \\
+        --custom ${custom_annot},"CHROMOSEQ,vcf,exact,0,DB,BLACKLIST" \
+        -o ${meta.sample}.deepsomatic.annotated.vcf
+
+    bgzip -c \\
+        ${meta.sample}.deepsomatic.annotated.vcf \\
+        > "${meta.sample}.deepsomatic.annotated.vcf.gz"
+
+    tabix \\
+        -p vcf \\
+        ${meta.sample}.deepsomatic.annotated.vcf.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        vep: \$(/opt/vep/src/ensembl-vep/vep 2>&1 | grep ensembl-vep | awk -F ': ' '{print \$NF}')
+    END_VERSIONS
+    """
+
+}

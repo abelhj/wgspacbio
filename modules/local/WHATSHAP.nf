@@ -19,7 +19,8 @@ process WHATSHAP {
 
     script:
     """
-
+    
+    echo ""
 
     whatshap phase --output ${meta.sample}.phased.vcf.gz \\
     --reference $reference_fasta \\

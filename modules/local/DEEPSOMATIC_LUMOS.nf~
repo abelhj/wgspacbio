@@ -1,0 +1,31 @@
+process DEEPSOMATIC_LUMOS {
+    label 'process_xtra_high'
+    conda '/opt/conda/envs/bio'
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'abelhj/deepsomatic:1.9.0' :
+        'abelhj/deepsomatic:1.9.0' }"
+
+    input:
+        tuple val(meta), path(bam_bai_files)
+        path (reference_fasta)
+        path (reference_fasta_index)
+
+    output:
+        tuple val(meta), path("${meta.sample}*.ds.lumos.merged.vcf.gz")    , emit: vcf
+
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+      
+        ds_parallel_tumor_only.sh ${meta.sample}.sorted.bam $reference_fasta ${meta.sample}_deepsomatic_out ${meta.sample}
+        echo "hello"
+        echo "hi"
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        deepsomatic: \$(/opt/deepvariant/bin/deepsomatic/run_deepsomatic --version | grep version )
+    END_VERSIONS
+    """
+
+}
