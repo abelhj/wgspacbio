@@ -1,0 +1,36 @@
+process FILTER_SMALL_SOMATIC {
+    tag "${meta.sample}"
+    label "process_low"
+
+    container "ghcr.io/dhslab/docker-vep_release113:250810"
+
+    input:
+    tuple val(meta), path(vcf)
+    path(genes)
+
+    output:
+    tuple val(meta), path("*.deepsomatic.annotated.targets.vcf.gz*"), emit: vcf
+    path("versions.yml")                        , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    """
+
+
+
+    tabix -h ${meta.sample}.deepsomatic.annotated.vcf.gz  -T $genes | bgzip -c > ${meta.sample}.deepsomatic.annotated.targets.vcf.gz
+
+    tabix \\
+        -p vcf \\
+        ${meta.sample}.deepsomatic.annotated.targets.vcf.gz
+
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        tabix: tabix
+    END_VERSIONS
+    """
+
+}

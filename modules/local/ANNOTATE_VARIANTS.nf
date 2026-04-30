@@ -11,10 +11,12 @@ process ANNOTATE_VARIANTS {
     path(vep_cache)
     path(cytobands)
     path(custom_annot)
+    path(genes)
 
 
     output:
     tuple val(meta), path("*.annotated.vcf.gz*"), emit: vcf
+    tuple val(meta), path("*.annotated.targets.vcf.gz*"), emit: targets_vcf
     path("versions.yml")                        , emit: versions
 
     when:
@@ -51,6 +53,13 @@ process ANNOTATE_VARIANTS {
     tabix \\
         -p vcf \\
         ${meta.sample}.annotated.vcf.gz
+
+    tabix -h ${meta.sample}.annotated.vcf.gz  -T $genes | bgzip -c > ${meta.sample}.annotated.targets.vcf.gz
+
+    tabix \\
+        -p vcf \\
+        ${meta.sample}.annotated.targets.vcf.gz
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

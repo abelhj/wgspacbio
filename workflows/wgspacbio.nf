@@ -63,11 +63,18 @@ include { LONGPHASE                                     } from '../modules/local
 include { WAKHAN_HAPCORRECT                             } from '../modules/local/WAKHAN_HAPCORRECT.nf'
 include { HAPLOTAG                                      } from '../modules/local/HAPLOTAG.nf'
 include { DEEPSOMATIC_LUMOS                             } from '../modules/local/DEEPSOMATIC_LUMOS.nf'
-include { SEVERUS                                       } from '../modules/local/SEVERUS.nf'
+/*include { SEVERUS                                       } from '../modules/local/SEVERUS.nf'
 include { WAKHAN_CNA                                    } from '../modules/local/WAKHAN_CNA.nf'
-include { PB_CPG                                        } from '../modules/local/PB_CPG.nf'
+include { PB_CPG                                        } from '../modules/local/PB_CPG.nf'  */
 include { ANNOTATE_VARIANTS                             } from '../modules/local/ANNOTATE_VARIANTS.nf'
 include { ANNOTATE_SOMATIC                              } from '../modules/local/ANNOTATE_SOMATIC.nf'
+/*include { FILTER_SMALL_VAR                              } from '../modules/local/FILTER_SMALL_VAR.nf'
+include { FILTER_SMALL_SOMATIC                          } from '../modules/local/FILTER_SMALL_SOMATIC.nf'
+include { SVPACK                                        } from '../modules/local/SVPACK.nf'
+include { ANNOTATE_SV_VEP                               } from '../modules/local/ANNOTATE_SV_VEP.nf'
+include { FILTER_SV                                     } from '../modules/local/FILTER_SV.nf'
+include { FILTER_CNV                                    } from '../modules/local/FILTER_CNV.nf' */
+include { JASMINE                                       } from '../modules/local/JASMINE.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,8 +124,13 @@ if (params.reads_format == 'bam' ) {
     ch_versions = ch_versions.mix(MERGE_BASECALL_SAMPLE.out.versions)
     println 'merge_done\n'
 
+    JASMINE (
+        MERGE_BASECALL_SAMPLE.out.merged_bam
+    )
+    ch_versions = ch_versions.mix(JASMINE.out.versions)
+
     PBMM2_ALIGNER (
-        MERGE_BASECALL_SAMPLE.out.merged_bam,
+        JASMINE.out.bam,
         file(params.fasta)
     )
     ch_versions = ch_versions.mix(PBMM2_ALIGNER.out.versions)
@@ -198,7 +210,7 @@ if (params.reads_format == 'bam' ) {
     ch_versions = ch_versions.mix(DEEPSOMATIC_LUMOS.out.versions)
 
 
-    ch_severus_input = HAPLOTAG.out.bam.mix(HAPLOTAG.out.bai, WAKHAN_HAPCORRECT.out.rephased_vcf, WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:4).map{ meta, files -> [ meta, files.flatten() ]}
+/*    ch_severus_input = HAPLOTAG.out.bam.mix(HAPLOTAG.out.bai, WAKHAN_HAPCORRECT.out.rephased_vcf, WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:4).map{ meta, files -> [ meta, files.flatten() ]}
     SEVERUS(
       ch_severus_input,
       file(params.fasta),
@@ -223,7 +235,7 @@ if (params.reads_format == 'bam' ) {
         file(params.fasta),
         file(params.fasta_index),
       )
-    ch_versions = ch_versions.mix(PB_CPG.out.versions)
+    ch_versions = ch_versions.mix(PB_CPG.out.versions) */
  
 
    ch_annotate_input = WAKHAN_HAPCORRECT.out.rephased_vcf.mix(WAKHAN_HAPCORRECT.out.rephased_vcf_tbi).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
@@ -235,7 +247,8 @@ if (params.reads_format == 'bam' ) {
       file(params.fasta_index),
       file(params.vep_cache),
       file(params.cytobands),
-      file(params.custom_annotations)
+      file(params.custom_annotations),
+      file(params.chromoseq_genes)
    )
    //ch_annotate_input = DEEPSOMATIC_LUMOS.out.fixed_vcf.mix(DEEPSOMATIC_LUMOS.out.fixed_vcf_tbi).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
    //MODULE: ANNOTATE_VARIANTS
@@ -246,49 +259,82 @@ if (params.reads_format == 'bam' ) {
       file(params.fasta_index),
       file(params.vep_cache),
       file(params.cytobands),
-      file(params.custom_annotations)
+      file(params.custom_annotations),
+      file(params.chromoseq_genes)
    )
+   ch_versions = ch_versions.mix(ANNOTATE_VARIANTS.out.versions)
 
 
-  ch_versions = ch_versions.mix(ANNOTATE_VARIANTS.out.versions)
+//   SVPACK(
+//     SEVERUS.out.severus_output
+//   )
+//   ch_versions = ch_versions.mix(SVPACK.out.versions)
 //
-//
-//
-//    CUSTOM_DUMPSOFTWAREVERSIONS (
-//        ch_versions.unique().collectFile(name: 'collated_versions.yml')
+//   ANNOTATE_SV_VEP(
+//       SVPACK.out.vcf,
+//       file(params.fasta),
+//       file(params.fasta_index),
+//       file(params.vep_cache),
+//       file(params.cytobands),
+//       file(params.chromoseq_sv_genes)
 //    )
 //
-//    //
-//    // MODULE: MultiQC
-//    //
-//    workflow_summary    = WorkflowWgsnano.paramsSummaryMultiqc(workflow, summary_params)
-//    ch_workflow_summary = Channel.value(workflow_summary)
-//
-//    methods_description    = WorkflowWgsnano.methodsDescriptionText(workflow, ch_multiqc_custom_methods_description)
-//    ch_methods_description = Channel.value(methods_description)
-//
-//    ch_multiqc_files = Channel.empty()
-//    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-//    ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml'))
-//    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-//
-//
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.summary_txt.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_txt.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_bed.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_csi.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.quantized_bed.collect{it[1]}.ifEmpty([]))
-//    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.quantized_csi.collect{it[1]}.ifEmpty([]))
-//
-//
-//    MULTIQC (
-//        ch_multiqc_files.collect(),
-//        ch_multiqc_config.toList(),
-//        ch_multiqc_custom_config.toList(),
-//        ch_multiqc_logo.toList()
+//    ch_filter_input = SVPACK.out.vcf.mix(ANNOTATE_SV_VEP.out.vcf).groupTuple(size:2).map{ meta, files -> [ meta, files.flatten() ]}
+//    FILTER_SV(
+//       ch_filter_input,
+//       file(params.chromoseq_sv_genes),
+//       file(params.chromoseq_genes),
+//       file(params.chromoseq_recurrent_sv),
+//       file(params.bnd_ins)
 //    )
-//    multiqc_report = MULTIQC.out.report.toList()
+//    ch_versions = ch_versions.mix(FILTER_SV.out.versions)
+//
+//    FILTER_CNV(
+//        WAKHAN_CNA.out.wakhan_output,
+//        file(params.chromoseq_sv_genes),
+//        file(params.chromoseq_genes),
+//        file(params.cytobands),
+//        file(params.centromeres)
+//    )
+//    ch_versions = ch_versions.mix(FILTER_CNV.out.versions)    
+  
+
+
+    CUSTOM_DUMPSOFTWAREVERSIONS (
+        ch_versions.unique().collectFile(name: 'collated_versions.yml')
+    )
+
+    //
+    // MODULE: MultiQC
+    //
+    workflow_summary    = WorkflowWgsnano.paramsSummaryMultiqc(workflow, summary_params)
+    ch_workflow_summary = Channel.value(workflow_summary)
+
+    methods_description    = WorkflowWgsnano.methodsDescriptionText(workflow, ch_multiqc_custom_methods_description)
+    ch_methods_description = Channel.value(methods_description)
+
+    ch_multiqc_files = Channel.empty()
+    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml'))
+    ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
+
+
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.global_txt.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.summary_txt.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_txt.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_bed.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.regions_csi.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.quantized_bed.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(MOSDEPTH.out.quantized_csi.collect{it[1]}.ifEmpty([]))
+
+
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config.toList(),
+        ch_multiqc_custom_config.toList(),
+        ch_multiqc_logo.toList()
+    )
+    multiqc_report = MULTIQC.out.report.toList()
 
 }
 

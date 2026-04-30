@@ -11,10 +11,12 @@ process ANNOTATE_SOMATIC {
     path(vep_cache)
     path(cytobands)
     path(custom_annot)
+    path(genes)
 
 
     output:
     tuple val(meta), path("*.deepsomatic.annotated.vcf.gz*"), emit: vcf
+    tuple val(meta), path("*.annotated.targets.vcf.gz*"), emit: targets_vcf
     path("versions.yml")                        , emit: versions
 
     when:
@@ -50,6 +52,13 @@ process ANNOTATE_SOMATIC {
     tabix \\
         -p vcf \\
         ${meta.sample}.deepsomatic.annotated.vcf.gz
+
+    tabix -h ${meta.sample}.deepsomatic.annotated.vcf.gz  -T $genes | bgzip -c > ${meta.sample}.deepsomatic.annotated.targets.vcf.gz
+
+    tabix \\
+        -p vcf \\
+        ${meta.sample}.deepsomatic.annotated.targets.vcf.gz
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

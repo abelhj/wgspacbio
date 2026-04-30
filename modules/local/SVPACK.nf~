@@ -1,0 +1,46 @@
+process SVPACK {
+    label 'process_high'
+
+  
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'abelhj/svpack' :
+        'abelhj/svpack' }"
+
+    input:
+        tuple val(meta), path(input_files)
+
+    output:
+        tuple val(meta), path("${meta.sample}*.vcf")    , emit: vcf
+        path  ("versions.yml")                                      , emit: versions
+
+    script:
+    """
+
+    
+    gff=/opt/svpack/resources/ensembl.GRCh38.101.reformatted.gff3.gz
+    hprc_vcf=/opt/svpack/resources/HPRC_GIAB.GRCh38.pbsv.ids.vcf.gz
+    ccdg_vcf=/opt/svpack/resources/Build38.public.v2.ids.bnd.vcf.gz
+
+    cat $input_files/all_SVs/severus_all.vcf \
+    | awk 'BEGIN{OFS="\t"}{
+      if(\$1~/#/) print \$0;
+      else if(\$7=="PASS") {
+        if(\$2==0) \$2=1;
+        if(\$8~/SVTYPE=BND/) gsub(";END=", ";BNDEND=", \$8); 
+      print \$0;}}' \
+    > severus_all.pass.end_fixed.vcf
+
+    cat severus_all.pass.end_fixed.vcf \
+        | python /opt/svpack/svpack_mod2  consequence -  <(gunzip -c  \$gff ) \
+        | python /opt/svpack/svpack_mod2 match -i HPRCID -i HPRC_LOC  - \$hprc_vcf \
+        | python /opt/svpack/svpack_mod2 match -i CCDG_ID -i CCDG_SVTYPE - \$ccdg_vcf \
+    > ${meta.sample}.severus.svpack.vcf
+
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        svpack: svpack_mod2
+    END_VERSIONS
+    """
+
+}
